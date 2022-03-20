@@ -6,20 +6,18 @@ Reference:
 import json
 import logging
 
+from flask import Flask, request
 from slack_bolt import App
 from slack_bolt.adapter.flask import SlackRequestHandler
-
-from utils import (
-    request_song_info,
-    extract_user_input,
-    parse_urls_from_page,
-    request_youtube_search,
-)
+from song_recommender import SongRecommender
 
 
 # process_before_response must be True when running on FaaS
 app = App(process_before_response=True)
 bolt_handler = SlackRequestHandler(app)
+song_recommender = SongRecommender()
+
+flask_app = Flask(__name__)
 
 logging.basicConfig(format="%(asctime)s %(message)s", level=logging.DEBUG)
 
@@ -30,20 +28,33 @@ def handle_challenge(request):
     return response
 
 
-@app.event("app_mention")
-def handle_app_mentions(body, say, logger) -> None:
+@app.event("static_select-action")
+def handle_reco_feedback(body, say, logger):
     logger.info("body:", body)
 
-    user_input = extract_user_input(body)
-    artist, song_name = request_song_info(user_input)
 
-    page = request_youtube_search(artist, song_name)
-    watch_urls = parse_urls_from_page(page)
-    reco_url = watch_urls[0]
-
-    msg_ = f"artist: {artist} song_name: {song_name}, reco_url: {reco_url}"
-    say(msg_)
+@app.event("app_mention")
+def handle_app_mentions(body, say, logger):
+    logger.info("body:", body)
+    blocks = song_recommender.recommend_song_test(body)
+    say(blocks=blocks)
 
 
-def handler(request):
+@flask_app.route("/slack/install", methods=["GET"])
+def install():
     return bolt_handler.handle(request)
+
+
+@flask_app.route("/slack/oauth_redirect", methods=["GET"])
+def oauth_redirect():
+    return bolt_handler.handle(request)
+
+
+def handler(*args):
+    """
+    AWS
+        - args is event, context
+    CloudFunction
+        - args is request
+    """
+    return bolt_handler.handle(*args)

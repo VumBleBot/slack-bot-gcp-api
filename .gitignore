@@ -1,7 +1,8 @@
 #
 .python-version
-test/test_utils.py
-test/make_fake_dummy.py
+config/.env
+data
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

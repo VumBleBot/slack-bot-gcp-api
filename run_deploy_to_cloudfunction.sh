@@ -9,5 +9,5 @@ gcloud functions deploy recommendation \
     --project vumblebot-340720 \
     --runtime python39 \
     --trigger-http \
-    --set-env-vars "SLACK_BOT_TOKEN=$SLACK_BOT_TOKEN,SLACK_SIGNING_SECRET=$SLACK_SIGNING_SECRET" \
+    --build-env-vars-file config/.env \ 
     --allow-unauthenticated
