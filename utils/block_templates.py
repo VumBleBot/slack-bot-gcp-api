@@ -1,5 +1,11 @@
-import blocks
+import re
 from typing import List
+
+import blocks
+
+
+def del_paren(text: str):
+    return " ".join(re.sub(r"\([^)]*\)", "", text).split())
 
 
 class BlockTemplates:
@@ -11,10 +17,11 @@ class BlockTemplates:
             *[
                 blocks.app_mention.recommendation_element_of_list(
                     content["youtube_url"],
-                    content["youtube_title"],
-                    content["score"],
+                    del_paren(f"{content['artist']} - {content['song_name']}")[:50],
+                    content["score"],  # score don't used
+                    idx + 1,  # idx don't used
                 )
-                for content in contents
+                for idx, content in enumerate(contents)
             ],
             blocks.DIVIDER,
             blocks.app_mention.recommendation_feedback(contents),

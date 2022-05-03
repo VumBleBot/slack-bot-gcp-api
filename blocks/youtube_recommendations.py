@@ -18,10 +18,10 @@ def youtube_rogo_with_title(watch_url: str, song_title: str, accuracy: float) ->
     }
 
 
-def youtube_recommendations(song_infos: List[dict]) -> List[dict]:
+def youtube_recommendations(contents: List[dict]) -> List[dict]:
     return [
         youtube_rogo_with_title(
-            song_info["watch_url"], song_info["title"], 1 - (0.02 * (i + 1))
+            content["watch_url"], content["title"], 1 - (0.02 * (i + 1))
         )
-        for i, song_info in enumerate(song_infos)
+        for i, content in enumerate(contents)
     ]

@@ -19,7 +19,7 @@ def recommendation_summary(user_emotion: str, accuracy: float) -> dict:
 
 
 def recommendation_element_of_list(
-    watch_url: str, song_title: str, similarity: float
+    watch_url: str, song_title: str, similarity: float, idx: int
 ) -> dict:
     return {
         "type": "context",
@@ -31,7 +31,7 @@ def recommendation_element_of_list(
             },
             {
                 "type": "mrkdwn",
-                "text": f"{similarity*100:.1f}% <{watch_url}|{song_title}>",
+                "text": f"<{watch_url}|{song_title}>",
             },
         ],
     }

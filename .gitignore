@@ -1,6 +1,10 @@
 #
 .python-version
 config/.env
+config/.env.json
+.env
+.env.json
+.flaskenv
 data
 
 

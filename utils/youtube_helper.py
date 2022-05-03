@@ -1,10 +1,15 @@
-import re
-import json
-import aiohttp
+import os
 import asyncio
-import requests
-
+import json
+import re
 from typing import List
+
+import aiohttp
+
+path = os.path.abspath(os.path.join(__file__, "..", ".."))
+
+with open(os.path.join(path, "youtube_db.json"), "r") as f:
+    youtube_db = json.load(f)
 
 
 class YoutubeHelper:
@@ -13,57 +18,78 @@ class YoutubeHelper:
     search_url: str = "https://www.youtube.com/results?search_query={}+-+{}"
 
     @classmethod
-    def _parsing(cls, page: str) -> dict:
-        pattern = "var ytInitialData = ([^;]*);"
-        yt_initial_data = json.loads(re.findall(pattern, page)[0])
-        yt_songs_data = yt_initial_data["contents"]["twoColumnSearchResultsRenderer"]
-        yt_songs_data = yt_songs_data["primaryContents"]["sectionListRenderer"]
-        yt_songs_data = yt_songs_data["contents"][0]["itemSectionRenderer"]["contents"]
+    async def _parsing(cls, session, url):
+        async with session.get(url) as resp:
+            page = await resp.text()
+            data = re.search(r"var ytInitialData = ({.*?});", page).group(1)
+            yt_initial_data = json.loads(data)
+            yt_songs_data = yt_initial_data["contents"][
+                "twoColumnSearchResultsRenderer"
+            ]
+            yt_songs_data = yt_songs_data["primaryContents"]["sectionListRenderer"]
+            yt_songs_data = yt_songs_data["contents"][0]["itemSectionRenderer"][
+                "contents"
+            ]
 
-        song_infos = {}
+            for song_data in yt_songs_data:
+                if "videoRenderer" not in song_data:
+                    continue
 
-        for song_data in yt_songs_data:
-            try:
                 video_id = song_data["videoRenderer"]["videoId"]
                 title = song_data["videoRenderer"]["title"]["runs"][0]["text"]
-                url = cls.watch_url.format(video_id)
 
                 if len(title) > cls.title_limit:
                     title = title[: cls.title_limit] + " ..."
 
-                song_infos["youtube_url"] = url
-                song_infos["youtube_title"] = title
-                break
-            except KeyError:
-                continue
-            except Exception:
-                continue
+                url = cls.watch_url.format(video_id)
 
-        return song_infos
+                return url, title
 
     @classmethod
-    async def _search(cls, artist: str, song_name: str) -> str:
-        youtube_search_url = cls.search_url.format(artist, song_name)
-        page = requests.get(youtube_search_url).text
-        return page
+    async def add_youtube_infos(cls, contents: List[dict], topk=5) -> List[dict]:
+        async with aiohttp.ClientSession() as session:
+            new_contents = []
+            tasks = []
 
-    @staticmethod
-    def add_youtube_infos(contents: List[dict], topk=5) -> List[dict]:
+            for content in contents[:topk]:
+                url = cls.search_url.format(content["artist"], content["song_name"])
+                tasks.append(asyncio.ensure_future(cls._parsing(session, url)))
+
+            # 순서대로 스케쥴링됨
+            result = await asyncio.gather(*tasks)
+
+            for i, content in enumerate(contents[:topk]):
+                content["youtube_url"] = result[i][0]
+                content["youtube_title"] = result[i][1]
+                new_contents.append(content)
+
+        return new_contents
+
+    @classmethod
+    def add_youtube_infos_from_db(cls, contents: List[dict], topk=5) -> List[dict]:
         new_contents = []
-        for k, content in enumerate(contents):
-            if k == topk:
+        visited = set()
+
+        for content in contents:
+
+            if len(new_contents) >= topk:
                 break
 
-            try:
-                search_page = YoutubeHelper._search(
-                    content["artist"], content["song_name"]
-                )
-                song_infos = YoutubeHelper._parsing(search_page)
-                content["youtube_url"] = song_infos["youtube_url"]
-                content["youtube_title"] = song_infos["youtube_title"]
+            search_key = f"{content['artist']}-{content['song_name']}"
+            youtube_url = youtube_db[search_key]["youtube_url"]
+            youtube_title = youtube_db[search_key]["youtube_title"]
 
-                new_contents.append(content)
-            except:
+            if len(youtube_title) > cls.title_limit:
+                youtube_title = youtube_title[: cls.title_limit] + " ..."
+
+            if youtube_url in visited:
                 continue
+
+            visited.add(youtube_url)
+
+            content["youtube_url"] = youtube_url
+            content["youtube_title"] = youtube_title
+
+            new_contents.append(content)
 
         return new_contents
